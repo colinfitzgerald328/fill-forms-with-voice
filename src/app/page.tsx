@@ -199,7 +199,7 @@ function FormBuilder() {
   useEffect(() => {
     const interval = setInterval(() => {
       fillFormWithAI();
-    }, 10000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [fillFormWithAI]);
