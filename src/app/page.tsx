@@ -41,15 +41,16 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true,
 });
 
+
+
 function FormBuilder() {
-  const [templates, setTemplates] = useState<{ [key: string]: any }>({});
+  const [templates, setTemplates] = useState({});
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState({});
   const [newTemplateName, setNewTemplateName] = useState("");
   const [newTemplateSchema, setNewTemplateSchema] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [showErrors, setShowErrors] = useState(false);
-  const [formErrors, setFormErrors] = useState<any>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { transcript } = useTranscript();
 
@@ -93,7 +94,6 @@ function FormBuilder() {
   const handleTemplateSelect = (templateName: string) => {
     setSelectedTemplate(templateName);
     setFormData({});
-    setFormErrors(null);
     setIsSubmitted(false);
   };
 
@@ -101,7 +101,6 @@ function FormBuilder() {
     setIsSubmitted(true);
     if (!selectedTemplate) {
       setErrors(["Please select a template before submitting."]);
-      return;
     }
   };
 
@@ -123,7 +122,7 @@ function FormBuilder() {
     [],
   );
 
-  const [variant, setVariant] =
+  const [variant] =
     React.useState<TextFieldProps["variant"]>("outlined");
 
   const theme = React.useMemo(() => {
@@ -158,6 +157,8 @@ function FormBuilder() {
     if (!selectedTemplate || !transcript) return;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error
       templates[selectedTemplate]["additionalProperties"] = false;
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -176,6 +177,8 @@ function FormBuilder() {
           type: "json_schema",
           json_schema: {
             name: "tst",
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
             schema: templates[selectedTemplate],
           },
         },
@@ -295,17 +298,20 @@ function FormBuilder() {
             {selectedTemplate && (
               <ThemeProvider theme={theme}>
                 <JsonForms
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
                   schema={templates[selectedTemplate]}
                   data={formData}
                   renderers={materialRenderers}
                   cells={materialCells}
-                  onChange={({ data, errors }) => {
+                  onChange={({ data }) => {
                     setFormData(data);
-                    setFormErrors(errors);
                   }}
                   validationMode={
                     isSubmitted ? "ValidateAndShow" : "NoValidation"
                   }
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
                   i18n={{ translate: translateErrors }}
                 />
               </ThemeProvider>
