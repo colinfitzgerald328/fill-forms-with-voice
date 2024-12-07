@@ -37,7 +37,7 @@ export default function VoiceTranscription() {
       mediaRecorderRef.current = new MediaRecorder(stream);
 
       socketRef.current = new WebSocket(
-        "wss://api.deepgram.com/v1/listen?model=nova",
+        "wss://api.deepgram.com/v1/listen?model=nova-2",
         ["token", process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY as string],
       );
 
