@@ -27,7 +27,8 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 import VoiceTranscription from "@/components/voice-transcription";
 import {
   TranscriptProvider,
@@ -36,12 +37,9 @@ import {
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey:
-    process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
   dangerouslyAllowBrowser: true,
 });
-
-
 
 function FormBuilder() {
   const [templates, setTemplates] = useState({});
@@ -53,6 +51,7 @@ function FormBuilder() {
   const [showErrors, setShowErrors] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { transcript } = useTranscript();
+  const [useAI, setUseAI] = useState(true);
 
   useEffect(() => {
     const savedTemplates = localStorage.getItem("jsonFormTemplates");
@@ -114,16 +113,17 @@ function FormBuilder() {
               .replace(/([A-Z])/g, " $1")
               .replace(/^./, (str) => str.toUpperCase())
           : null;
-        return `${priorToErrorTitleCase} ${priorToErrorTitleCase!.endsWith("s") ? "are" : "is"} required`;
+        return `${priorToErrorTitleCase} ${
+          priorToErrorTitleCase!.endsWith("s") ? "are" : "is"
+        } required`;
       } else {
         return defaultMessage;
       }
     },
-    [],
+    []
   );
 
-  const [variant] =
-    React.useState<TextFieldProps["variant"]>("outlined");
+  const [variant] = React.useState<TextFieldProps["variant"]>("outlined");
 
   const theme = React.useMemo(() => {
     return createTheme({
@@ -154,7 +154,7 @@ function FormBuilder() {
   }, [variant]);
 
   const fillFormWithAI = useCallback(async () => {
-    if (!selectedTemplate || !transcript) return;
+    if (!selectedTemplate || !transcript || !useAI) return;
 
     try {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -188,13 +188,14 @@ function FormBuilder() {
         frequency_penalty: 0,
         presence_penalty: 0,
       });
-      const aiFormData =
-        response?.choices?.[0]?.message?.content ? JSON.parse(response.choices[0].message.content) : {};
+      const aiFormData = response?.choices?.[0]?.message?.content
+        ? JSON.parse(response.choices[0].message.content)
+        : {};
       setFormData(aiFormData);
     } catch (error) {
       console.error("Error filling form with AI:", error);
     }
-  }, [selectedTemplate, transcript, templates]);
+  }, [selectedTemplate, transcript, templates, useAI]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -295,6 +296,16 @@ function FormBuilder() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="ai-toggle"
+                checked={useAI}
+                onCheckedChange={setUseAI}
+              />
+              <Label htmlFor="ai-toggle" className="text-green-700">
+                Use AI to fill form
+              </Label>
+            </div>
             {selectedTemplate && (
               <ThemeProvider theme={theme}>
                 <JsonForms
@@ -356,3 +367,4 @@ export default function Home() {
     </TranscriptProvider>
   );
 }
+
