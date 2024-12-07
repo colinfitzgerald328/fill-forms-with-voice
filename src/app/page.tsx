@@ -161,7 +161,7 @@ function FormBuilder() {
       // @ts-expect-error
       templates[selectedTemplate]["additionalProperties"] = false;
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -182,8 +182,8 @@ function FormBuilder() {
             schema: templates[selectedTemplate],
           },
         },
-        temperature: 0.1,
-        max_tokens: 4000,
+        temperature: 0.7,
+        max_tokens: 2000,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
