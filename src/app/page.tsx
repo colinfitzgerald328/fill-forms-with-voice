@@ -1,101 +1,352 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { JsonForms } from "@jsonforms/react";
+import {
+  materialRenderers,
+  materialCells,
+} from "@jsonforms/material-renderers";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ThemeProvider, createTheme, TextFieldProps } from "@mui/material";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import VoiceTranscription from "@/components/voice-transcription";
+import {
+  TranscriptProvider,
+  useTranscript,
+} from "@/contexts/TranscriptContext";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey:
+    process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
+  dangerouslyAllowBrowser: true,
+});
+
+function FormBuilder() {
+  const [templates, setTemplates] = useState<{ [key: string]: any }>({});
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [newTemplateSchema, setNewTemplateSchema] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [showErrors, setShowErrors] = useState(false);
+  const [formErrors, setFormErrors] = useState<any>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { transcript } = useTranscript();
+
+  useEffect(() => {
+    const savedTemplates = localStorage.getItem("jsonFormTemplates");
+    if (savedTemplates) {
+      setTemplates(JSON.parse(savedTemplates));
+    }
+  }, []);
+
+  const saveTemplate = () => {
+    setShowErrors(false);
+    const newErrors = [];
+
+    if (!newTemplateName.trim()) {
+      newErrors.push("Template name is required.");
+    }
+
+    try {
+      JSON.parse(newTemplateSchema);
+    } catch {
+      newErrors.push("Invalid JSON schema. Please check your input.");
+    }
+
+    if (newErrors.length > 0) {
+      setErrors(newErrors);
+      setShowErrors(true);
+      return;
+    }
+
+    const schema = JSON.parse(newTemplateSchema);
+    schema.customErrorMessages = true;
+    const updatedTemplates = { ...templates, [newTemplateName]: schema };
+    setTemplates(updatedTemplates);
+    localStorage.setItem("jsonFormTemplates", JSON.stringify(updatedTemplates));
+    setNewTemplateName("");
+    setNewTemplateSchema("");
+    setErrors([]);
+  };
+
+  const handleTemplateSelect = (templateName: string) => {
+    setSelectedTemplate(templateName);
+    setFormData({});
+    setFormErrors(null);
+    setIsSubmitted(false);
+  };
+
+  const handleSubmit = () => {
+    setIsSubmitted(true);
+    if (!selectedTemplate) {
+      setErrors(["Please select a template before submitting."]);
+      return;
+    }
+  };
+
+  const translateErrors = useMemo(
+    () => (key: string, defaultMessage: string) => {
+      if (key.endsWith(".error.required")) {
+        const items = key.split(".");
+        const priorToError = items[items.indexOf("error") - 1];
+        const priorToErrorTitleCase = priorToError
+          ? priorToError
+              .replace(/([A-Z])/g, " $1")
+              .replace(/^./, (str) => str.toUpperCase())
+          : null;
+        return `${priorToErrorTitleCase} ${priorToErrorTitleCase!.endsWith("s") ? "are" : "is"} required`;
+      } else {
+        return defaultMessage;
+      }
+    },
+    [],
+  );
+
+  const [variant, setVariant] =
+    React.useState<TextFieldProps["variant"]>("outlined");
+
+  const theme = React.useMemo(() => {
+    return createTheme({
+      components: {
+        MuiTextField: {
+          defaultProps: {
+            variant,
+          },
+        },
+        MuiSelect: {
+          defaultProps: {
+            variant,
+          },
+        },
+        ...(variant !== "standard"
+          ? {
+              MuiFormControl: {
+                styleOverrides: {
+                  root: {
+                    marginTop: "8px",
+                  },
+                },
+              },
+            }
+          : {}),
+      },
+    });
+  }, [variant]);
+
+  const fillFormWithAI = useCallback(async () => {
+    if (!selectedTemplate || !transcript) return;
+
+    try {
+      templates[selectedTemplate]["additionalProperties"] = false;
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an AI assistant helping to fill out a form based on a transcript.",
+          },
+          {
+            role: "user",
+            content: `Please fill out the form based on this transcript: ${transcript}`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "tst",
+            schema: templates[selectedTemplate],
+          },
+        },
+        temperature: 0.7,
+        max_tokens: 2048,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      });
+      const aiFormData =
+        response?.choices?.[0]?.message?.content ? JSON.parse(response.choices[0].message.content) : {};
+      setFormData(aiFormData);
+    } catch (error) {
+      console.error("Error filling form with AI:", error);
+    }
+  }, [selectedTemplate, transcript, templates]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fillFormWithAI();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fillFormWithAI]);
+
+  return (
+    <div className="container mx-auto p-4 space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardHeader>
+            <CardTitle className="text-blue-800">Create New Template</CardTitle>
+            <CardDescription className="text-blue-600">
+              Build and save a new JSON schema template
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="templateName" className="text-blue-700">
+                Template Name
+              </Label>
+              <Input
+                id="templateName"
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="Enter template name"
+                className="border-blue-300 focus:border-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="templateSchema" className="text-blue-700">
+                JSON Schema
+              </Label>
+              <Textarea
+                id="templateSchema"
+                value={newTemplateSchema}
+                onChange={(e) => setNewTemplateSchema(e.target.value)}
+                placeholder="Enter JSON schema"
+                rows={10}
+                className="border-blue-300 focus:border-blue-500"
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col items-start space-y-4">
+            <Button
+              onClick={saveTemplate}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Save Template
+            </Button>
+            {showErrors && errors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-4">
+                    {errors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardFooter>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100">
+          <CardHeader>
+            <CardTitle className="text-green-800">Fill Out Template</CardTitle>
+            <CardDescription className="text-green-600">
+              Select a template and fill out the form
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="templateSelect" className="text-green-700">
+                Select Template
+              </Label>
+              <Select
+                onValueChange={handleTemplateSelect}
+                value={selectedTemplate || undefined}
+              >
+                <SelectTrigger
+                  id="templateSelect"
+                  className="border-green-300 focus:border-green-500"
+                >
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(templates).map((templateName) => (
+                    <SelectItem key={templateName} value={templateName}>
+                      {templateName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedTemplate && (
+              <ThemeProvider theme={theme}>
+                <JsonForms
+                  schema={templates[selectedTemplate]}
+                  data={formData}
+                  renderers={materialRenderers}
+                  cells={materialCells}
+                  onChange={({ data, errors }) => {
+                    setFormData(data);
+                    setFormErrors(errors);
+                  }}
+                  validationMode={
+                    isSubmitted ? "ValidateAndShow" : "NoValidation"
+                  }
+                  i18n={{ translate: translateErrors }}
+                />
+              </ThemeProvider>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-col items-start space-y-4">
+            <Button
+              onClick={handleSubmit}
+              disabled={!selectedTemplate}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Submit Form
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+      <div className="mt-8">
+        <VoiceTranscription />
+      </div>
+      <div className="mt-8">
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <CardHeader>
+            <CardTitle className="text-yellow-800">
+              Current Transcript
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-yellow-700">
+              {transcript || "No transcript available yet."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    <TranscriptProvider>
+      <FormBuilder />
+    </TranscriptProvider>
   );
 }
