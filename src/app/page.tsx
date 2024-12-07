@@ -166,7 +166,7 @@ function FormBuilder() {
           {
             role: "system",
             content:
-              "You are an AI assistant helping to fill out a form based on a transcript.",
+              "You are an AI assistant helping to fill out a form based on a transcript. DO NOT FILL OUT SECTIONS IF YOU ARE NOT FULLY CONFIDENT OF THE ANSWER.",
           },
           {
             role: "user",
@@ -182,8 +182,8 @@ function FormBuilder() {
             schema: templates[selectedTemplate],
           },
         },
-        temperature: 0.7,
-        max_tokens: 2048,
+        temperature: 0.1,
+        max_tokens: 4000,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
