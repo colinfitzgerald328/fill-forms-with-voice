@@ -38,7 +38,7 @@ export default function VoiceTranscription() {
 
       socketRef.current = new WebSocket(
         "wss://api.deepgram.com/v1/listen?model=nova-2",
-        ["token", process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY as string],
+        ["token", "7b4c158670442dbc0997cf11eda6db38b1160d5c"],
       );
 
       socketRef.current.onopen = () => {
