@@ -34,19 +34,14 @@ import {
   TranscriptProvider,
   useTranscript,
 } from "@/contexts/TranscriptContext";
-import OpenAI from "openai";
-
 import Groq from "groq-sdk";
 
 const groq = new Groq({
-  apiKey: "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",
+  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY as string,
   dangerouslyAllowBrowser: true,
 });
 
-// const openai = new OpenAI({
-//   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
-//   dangerouslyAllowBrowser: true,
-// });
+
 
 function FormBuilder() {
   const [templates, setTemplates] = useState({});
