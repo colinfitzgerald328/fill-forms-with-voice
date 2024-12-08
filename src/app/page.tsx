@@ -182,7 +182,7 @@ function FormBuilder() {
               )}`,
             },
           ],
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-8b-instant",
           response_format: { type: "json_object" },
         });
 
