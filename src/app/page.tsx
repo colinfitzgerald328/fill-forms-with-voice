@@ -34,14 +34,18 @@ import {
   TranscriptProvider,
   useTranscript,
 } from "@/contexts/TranscriptContext";
-import Groq from "groq-sdk";
+// import Groq from "groq-sdk";
+// const groq = new Groq({
+//   apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY as string,
+//   dangerouslyAllowBrowser: true,
+// });
 
-const groq = new Groq({
-  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY as string,
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
   dangerouslyAllowBrowser: true,
 });
-
-
 
 function FormBuilder() {
   const [templates, setTemplates] = useState({});
@@ -162,37 +166,38 @@ function FormBuilder() {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
       templates[selectedTemplate]["additionalProperties"] = false;
-      try {
-        const response = await groq.chat.completions.create({
-          messages: [
-            {
-              role: "system",
-              content:
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-expect-error
-                `You are an AI assistant helping to fill out a form based on a transcript. DO NOT FILL OUT SECTIONS IF YOU ARE NOT FULLY CONFIDENT OF THE ANSWER. The JSON object must use the schema: ${templates[selectedTemplate]}`,
-            },
-            {
-              role: "user",
-
-              content: `Please fill out the form based on this transcript: ${transcript}. You must follow the following json schema: ${JSON.stringify(
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-expect-error
-                templates[selectedTemplate],
-              )}`,
-            },
-          ],
-          model: "llama-3.3-70b-versatile",
-          response_format: { type: "json_object" },
-        });
-
-        const aiFormData = response?.choices?.[0]?.message?.content
-          ? JSON.parse(response.choices[0].message.content)
-          : {};
-        setFormData(aiFormData);
-      } catch (error) {
-        console.error("Error filling form with AI:", error);
-      }
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an AI assistant helping to fill out a form based on a transcript. DO NOT FILL OUT SECTIONS IF YOU ARE NOT FULLY CONFIDENT OF THE ANSWER.",
+          },
+          {
+            role: "user",
+            content: `Please fill out the form based on this transcript: ${transcript}`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "tst",
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            schema: templates[selectedTemplate],
+          },
+        },
+        temperature: 0.7,
+        max_tokens: 2000,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      });
+      const aiFormData = response?.choices?.[0]?.message?.content
+        ? JSON.parse(response.choices[0].message.content)
+        : {};
+      setFormData(aiFormData);
     } catch (error) {
       console.error("Error filling form with AI:", error);
     }
